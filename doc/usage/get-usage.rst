@@ -69,7 +69,7 @@ The content of ``selected_files_for_2021.csv`` would be:
 About ``--sync`` option
 ------------------------
 
-The ``--sync`` option downloads original files only if they do not exist or are not up to date. The Toolbox checks the destination folder against the source folder and can be combined with filters. If set with ``--overwrite``, the latter will be ignored. The ``--sync-delete`` option works like ``--sync`` but also deletes any local files not found on the remote server.
+The ``--sync`` option downloads original files only if they do not exist or are not up to date. The toolbox checks the destination folder against the source folder and can be combined with filters. If set with ``--overwrite``, the latter will be ignored. The ``--sync-delete`` option works like ``--sync`` but also deletes any local files not found on the remote server.
 
 **Limitations:**
 
@@ -100,7 +100,7 @@ About ``--file-list`` option
 
 The ``--file-list`` option allows specifying a list of files for advanced selection. The file can contain complete absolute paths or only a partial path defined by the user.
 
-By default, the get functionality lists all files on the remote server to select requested ones. The file list option will directly download files and avoid listings if all listed files are found.
+By default, the ``get`` functionality lists all files on the remote server to select requested ones. The file list option will directly download files and avoid listings if all listed files are found.
 
 **Example** of ``file_list.txt`` with paths that would be directly downloaded:
 

@@ -1,6 +1,6 @@
 import logging
 import ssl
-from typing import Any, List, Literal, Optional, Tuple
+from typing import Any, Literal, Optional
 
 import boto3
 import botocore
@@ -43,17 +43,21 @@ except ValueError:
 
 
 def get_ssl_context() -> Optional[ssl.SSLContext]:
-    if COPERNICUSMARINE_DISABLE_SSL_CONTEXT is not None:
+    if COPERNICUSMARINE_DISABLE_SSL_CONTEXT == "True":
         return None
+    if COPERNICUSMARINE_SET_SSL_CERTIFICATE_PATH:
+        return ssl.create_default_context(
+            capath=COPERNICUSMARINE_SET_SSL_CERTIFICATE_PATH
+        )
     return ssl.create_default_context(cafile=certifi.where())
 
 
 def get_configured_boto3_session(
     endpoint_url: str,
-    operation_type: List[Literal["ListObjects", "HeadObject", "GetObject"]],
+    operation_type: list[Literal["ListObjects", "HeadObject", "GetObject"]],
     username: Optional[str] = None,
     return_ressources: bool = False,
-) -> Tuple[Any, Any]:
+) -> tuple[Any, Any]:
     config_boto3 = botocore.config.Config(
         s3={"addressing_style": "virtual"},
         signature_version=botocore.UNSIGNED,
@@ -89,9 +93,12 @@ class ConfiguredRequestsSession(requests.Session):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.trust_env = TRUST_ENV
-        self.verify = (
-            COPERNICUSMARINE_SET_SSL_CERTIFICATE_PATH or certifi.where()
-        )
+        if COPERNICUSMARINE_DISABLE_SSL_CONTEXT == "True":
+            self.verify = False
+        else:
+            self.verify = (
+                COPERNICUSMARINE_SET_SSL_CERTIFICATE_PATH or certifi.where()
+            )
         self.proxies = PROXIES
         if HTTPS_RETRIES:
             self.mount(

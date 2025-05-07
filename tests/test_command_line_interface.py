@@ -14,6 +14,7 @@ import xarray
 
 from tests.test_utils import (
     execute_in_terminal,
+    main_checks_when_file_is_downloaded,
     remove_extra_logging_prefix_info,
 )
 
@@ -167,14 +168,19 @@ class TestCommandLineInterface:
             "48.13780081656672",
             "--output-directory",
             tmp_path,
+            "--output-filename",
+            "dataset.nc",
             "--log-level",
             "DEBUG",
         ]
 
         self.output = execute_in_terminal(self.command)
+        assert self.output.returncode == 0
         assert (
             b"time       (time) datetime64[ns] 2023" not in self.output.stderr
         )
+        response = loads(self.output.stdout)
+        main_checks_when_file_is_downloaded(tmp_path / "dataset.nc", response)
 
     def test_retention_period_works_when_only_values_in_metadata(
         self, tmp_path
@@ -196,20 +202,27 @@ class TestCommandLineInterface:
             "48.13780081656672",
             "--output-directory",
             tmp_path,
+            "--output-filename",
+            "dataset.nc",
             "--log-level",
             "DEBUG",
         ]
 
         self.output = execute_in_terminal(self.command)
+        assert self.output.returncode == 0
         assert (
             b"time       (time) datetime64[ns] 2023" not in self.output.stderr
         )
+        response = loads(self.output.stdout)
+        main_checks_when_file_is_downloaded(tmp_path / "dataset.nc", response)
 
     # -------------------------#
     # Test on get requests #
     # -------------------------#
 
-    def test_get_original_files_functionality(self, tmp_path):
+    def test_get_original_files_functionality(
+        self, tmp_path
+    ):  # TODO: check this test and what does it do
         command = [
             "copernicusmarine",
             "get",
@@ -237,7 +250,7 @@ class TestCommandLineInterface:
         self.output = execute_in_terminal(command)
         downloaded_files = get_all_files_in_folder_tree(folder=tmp_path)
         assert self.output.returncode == 0
-        assert len(downloaded_files) == 29
+        assert len(downloaded_files) == 31
 
     def test_get_download_s3_with_regex(self, tmp_path):
         regex = ".*_(2001|2002|2003).*.nc"
@@ -462,7 +475,10 @@ class TestCommandLineInterface:
         assert str(tmp_path) in returned_value["file_path"]
         assert not os.path.exists(returned_value["file_path"])
 
-    def test_subset_by_default_returns_status_message(self, tmp_path):
+    def test_subset_by_default_returns_status_message(
+        self, tmp_path
+    ):  # TODO: it feels like we can just add this test into another one!
+        # so, do we need to download a whole dataset for this?
         command = [
             "copernicusmarine",
             "subset",
@@ -544,6 +560,10 @@ class TestCommandLineInterface:
 
         self.output = execute_in_terminal(command)
         is_file = pathlib.Path(tmp_path, output_filename).is_file()
+        response = loads(self.output.stdout)
+        main_checks_when_file_is_downloaded(
+            tmp_path / output_filename, response
+        )
         assert self.output.returncode == 0
         assert is_file
 
@@ -640,12 +660,13 @@ class TestCommandLineInterface:
         assert (
             b"Service unavailable-service does not exist for command subset. "
             b"Possible services: ['arco-geo-series', 'geoseries', "
-            b"'arco-time-series', 'timeseries', 'omi-arco', 'static-arco']"
+            b"'arco-time-series', 'timeseries', 'omi-arco', 'static-arco', "
+            b"'arco-platform-series', 'platformseries']"
         ) in self.output.stderr
 
     def when_I_request_subset_dataset_with_zarr_service(
         self,
-        output_path,
+        tmp_path,
         vertical_axis: Literal["depth", "elevation"] = "depth",
     ):
         command = [
@@ -676,7 +697,7 @@ class TestCommandLineInterface:
             "--service",
             "arco-time-series",
             "-o",
-            f"{output_path}",
+            f"{tmp_path}",
             "-f",
             "data.zarr",
         ]
@@ -819,7 +840,9 @@ class TestCommandLineInterface:
         assert self.output.returncode == 0
         assert b"No data to download" not in self.output.stderr
 
-    def test_subset_with_chunking(self, tmp_path):
+    def test_subset_with_chunking(
+        self, tmp_path
+    ):  # TODO: it says subset with chunking but looks kind of 'normal'
         command = [
             "copernicusmarine",
             "subset",
@@ -845,11 +868,15 @@ class TestCommandLineInterface:
             "8",
             "-o",
             f"{tmp_path}",
+            "-f",
+            "output.nc",
         ]
 
         self.output = execute_in_terminal(command)
 
         assert self.output.returncode == 0
+        response = loads(self.output.stdout)
+        main_checks_when_file_is_downloaded(tmp_path / "output.nc", response)
 
     def test_short_option_for_copernicus_marine_command_helper(self):
         short_option_command = [
@@ -1030,6 +1057,10 @@ class TestCommandLineInterface:
             "thetao"
             in xarray.open_zarr(f"{tmp_path}/{output_filename}").variables
         )
+        response = loads(self.output.stdout)
+        main_checks_when_file_is_downloaded(
+            tmp_path / output_filename, response
+        )
 
     def test_log_level_debug(self, tmp_path):
         dataset_id = "cmems_mod_ibi_phy_my_0.083deg-3D_P1Y-m"
@@ -1067,6 +1098,10 @@ class TestCommandLineInterface:
         self.output = execute_in_terminal(command)
         assert self.output.returncode == 0
         assert b"DEBUG - " in self.output.stderr
+        response = loads(self.output.stdout)
+        main_checks_when_file_is_downloaded(
+            tmp_path / output_filename, response
+        )
 
     def test_arco_subset_is_fast(self, tmp_path):
         command = [
@@ -1203,6 +1238,10 @@ class TestCommandLineInterface:
             )
             == 4
         )
+        response = loads(self.output.stdout)
+        main_checks_when_file_is_downloaded(
+            tmp_path / output_filename, response
+        )
 
     def test_netcdf_compression_option(self, tmp_path):
         filename_without_option = "without_option.nc"
@@ -1324,7 +1363,7 @@ class TestCommandLineInterface:
         size_without_option = get_file_size(filepath_without_option)
         size_with_option = get_file_size(filepath_with_option)
         logger.info(f"{size_without_option=}, {size_with_option=}")
-        assert 1.4 * size_with_option < size_without_option
+        assert 1.6 * size_with_option < size_without_option
 
     def test_omi_arco_service(self, tmp_path):
         base_command = [
@@ -1897,7 +1936,7 @@ class TestCommandLineInterface:
         This command can take several minutes or even end up in a memory issue
         because of the dask graph
 
-        copernicusmarine subset -i cmems_mod_glo_phy_my_0.083deg_P1D-m -t "2013-08-01" -T "2013-08-01" -x 113.896034  -y -11.045679 -Y -6.366948 -z 0 -Z 5000 --force-download
+        copernicusmarine subset -i cmems_mod_glo_phy_my_0.083deg_P1D-m -t "2013-08-01" -T "2013-08-01" -x 113.896034  -y -11.045679 -Y -6.366948 -z 0 -Z 5000
         """  # noqa
         command = [
             "copernicusmarine",
@@ -1923,3 +1962,111 @@ class TestCommandLineInterface:
         ]
         self.output = execute_in_terminal(command, timeout_second=60)
         assert self.output.returncode == 0
+
+    def test_that_requested_interval_is_correct_w_weird_windowing(
+        self, tmp_path
+    ):
+        output_filename = "output.nc"
+        min_longitude = -180.001
+        max_longitude = -178.001
+        min_latitude = 34.001
+        max_latitude = 37.001
+        min_depth = 30.554
+        max_depth = 50.023
+        start_datetime = "2023-12-01T01:00:23"
+        end_datetime = "2023-12-01T01:10:03"
+        command = [
+            "copernicusmarine",
+            "subset",
+            "--dataset-id",
+            "cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m",
+            "--variable",
+            "thetao",
+            "--minimum-longitude",
+            f"{min_longitude}",
+            "--maximum-longitude",
+            f"{max_longitude}",
+            "--minimum-latitude",
+            f"{min_latitude}",
+            "--maximum-latitude",
+            f"{max_latitude}",
+            "--start-datetime",
+            f"{start_datetime}",
+            "--end-datetime",
+            f"{end_datetime}",
+            "--minimum-depth",
+            f"{min_depth}",
+            "--maximum-depth",
+            f"{max_depth}",
+            "--coordinates-selection-method",
+            "inside",
+            "-o",
+            f"{tmp_path}",
+            "-f",
+            f"{output_filename}",
+            "--dry-run",
+        ]
+        output = execute_in_terminal(command)
+        assert output.returncode == 0
+
+        response = loads(output.stdout)
+        assert response["coordinates_extent"][0]["minimum"] >= min_longitude
+        assert (
+            response["coordinates_extent"][0]["maximum"] <= max_longitude + 360
+        )
+        assert response["coordinates_extent"][1]["minimum"] >= min_latitude
+        assert response["coordinates_extent"][1]["maximum"] <= max_latitude
+        assert response["coordinates_extent"][3]["minimum"] >= min_depth
+        assert response["coordinates_extent"][3]["maximum"] <= max_depth
+
+    def test_nearest_works_correctly_when_moving_windows(self, tmp_path):
+        output_filename = "output.nc"
+        min_longitude = 179.92
+        max_longitude = 181.999
+        min_latitude = 34.001
+        max_latitude = 37.001
+        min_depth = 30.554
+        max_depth = 50.023
+        start_datetime = "2023-12-01T01:00:23"
+        end_datetime = "2023-12-01T01:10:03"
+        command = [
+            "copernicusmarine",
+            "subset",
+            "--dataset-id",
+            "cmems_mod_glo_phy-thetao_anfc_0.083deg_P1D-m",
+            "--variable",
+            "thetao",
+            "--minimum-longitude",
+            f"{min_longitude}",
+            "--maximum-longitude",
+            f"{max_longitude}",
+            "--minimum-latitude",
+            f"{min_latitude}",
+            "--maximum-latitude",
+            f"{max_latitude}",
+            "--start-datetime",
+            f"{start_datetime}",
+            "--end-datetime",
+            f"{end_datetime}",
+            "--minimum-depth",
+            f"{min_depth}",
+            "--maximum-depth",
+            f"{max_depth}",
+            "--coordinates-selection-method",
+            "nearest",
+            "-o",
+            f"{tmp_path}",
+            "-f",
+            f"{output_filename}",
+            "--dry-run",
+        ]
+        output = execute_in_terminal(command)
+        assert output.returncode == 0
+
+        response = loads(output.stdout)
+        assert response["coordinates_extent"][0]["minimum"] <= min_longitude
+        assert response["coordinates_extent"][0]["maximum"] >= max_longitude
+        assert response["coordinates_extent"][1]["minimum"] <= min_latitude
+        assert response["coordinates_extent"][1]["maximum"] <= max_latitude
+        assert response["coordinates_extent"][3]["minimum"] <= min_depth
+        assert response["coordinates_extent"][3]["maximum"] <= max_depth

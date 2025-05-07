@@ -2,6 +2,8 @@ import pathlib
 from datetime import datetime
 from typing import List, Optional, Union
 
+import pandas as pd
+
 from copernicusmarine.core_functions.deprecated_options import (
     DEPRECATED_OPTIONS,
     deprecated_python_option,
@@ -19,6 +21,7 @@ from copernicusmarine.core_functions.models import (
     VerticalAxis,
 )
 from copernicusmarine.core_functions.subset import subset_function
+from copernicusmarine.core_functions.utils import original_grid_check
 from copernicusmarine.python_interface.exception_handler import (
     log_exception_and_exit,
 )
@@ -41,8 +44,12 @@ def subset(
     minimum_depth: Optional[float] = None,
     maximum_depth: Optional[float] = None,
     vertical_axis: VerticalAxis = DEFAULT_VERTICAL_AXIS,  # noqa
-    start_datetime: Optional[Union[datetime, str]] = None,
-    end_datetime: Optional[Union[datetime, str]] = None,
+    start_datetime: Optional[Union[datetime, pd.Timestamp, str]] = None,
+    end_datetime: Optional[Union[datetime, pd.Timestamp, str]] = None,
+    minimum_x: Optional[float] = None,
+    maximum_x: Optional[float] = None,
+    minimum_y: Optional[float] = None,
+    maximum_y: Optional[float] = None,
     coordinates_selection_method: CoordinatesSelectionMethod = (
         DEFAULT_COORDINATES_SELECTION_METHOD
     ),
@@ -61,9 +68,11 @@ def subset(
     netcdf_compression_level: int = 0,
     netcdf3_compatible: bool = False,
     chunk_size_limit: int = 100,
+    raise_if_updating: bool = False,
+    platform_ids: Optional[List[str]] = None,
 ) -> ResponseSubset:
     """
-    Extracts a subset of data from a specified dataset using given parameters.
+    Extract a subset of data from a specified dataset using given parameters.
 
     The datasetID is required and can be found via the ``describe`` command.
 
@@ -76,9 +85,9 @@ def subset(
     dataset_part : str, optional
         Force the selection of a specific dataset part.
     username : str, optional
-        The username for authentication. See also :func:`~copernicusmarine.login`
+        If not set, search for environment variable COPERNICUSMARINE_SERVICE_USERNAME, then search for a credentials file, else ask for user input. See also :func:`~copernicusmarine.login`
     password : str, optional
-        The password for authentication. See also :func:`~copernicusmarine.login`
+        If not set, search for environment variable COPERNICUSMARINE_SERVICE_PASSWORD, then search for a credentials file, else ask for user input. See also :func:`~copernicusmarine.login`
     variables : List[str], optional
         List of variable names to extract.
     minimum_longitude : float, optional
@@ -96,9 +105,9 @@ def subset(
     vertical_axis : str, optional
         Consolidate the vertical dimension (the z-axis) as requested: depth with descending positive values, elevation with ascending positive values. Default is depth.
     start_datetime : Union[datetime, str], optional
-        The start datetime of the temporal subset. Supports common format parsed by pendulum (https://pendulum.eustace.io/docs/#parsing).
+        The start datetime of the temporal subset. Supports common format parsed by dateutil (https://dateutil.readthedocs.io/en/stable/parser.html).
     end_datetime : Union[datetime, str], optional
-        The end datetime of the temporal subset. Supports common format parsed by pendulum (https://pendulum.eustace.io/docs/#parsing).
+        The end datetime of the temporal subset. Supports common format parsed by dateutil (https://dateutil.readthedocs.io/en/stable/parser.html).
     coordinates_selection_method : str, optional
         If ``inside``, the selection retrieved will be inside the requested range. If ``strict-inside``, the selection retrieved will be inside the requested range, and an error will be raised if the values don't exist. If ``nearest``, the extremes closest to the requested values will be returned. If ``outside``, the extremes will be taken to contain all the requested interval. The methods ``inside``, ``nearest`` and ``outside`` will display a warning if the request is out of bounds.
     output_directory : Union[pathlib.Path, str], optional
@@ -114,11 +123,11 @@ def subset(
     skip_existing : bool, optional
         If the files already exists where it would be downloaded, then the download is skipped for this file. By default, the toolbox creates a new file with a new index (eg 'filename_(1).nc').
     service : str, optional
-        Force download through one of the available services using the service name among ['arco-geo-series', 'arco-time-series', 'omi-arco', 'static-arco'] or its short name among ['geoseries', 'timeseries', 'omi-arco', 'static-arco'].
+        Force download through one of the available services using the service name among ['arco-geo-series', 'arco-time-series', 'omi-arco', 'static-arco', 'arco-platform-series'] or its short name among ['geoseries', 'timeseries', 'omi-arco', 'static-arco', 'platformseries'].
     request_file : Union[pathlib.Path, str], optional
         Option to pass a file containing the arguments. For more information please refer to the documentation or use option ``--create-template`` from the command line interface for an example template.
     motu_api_request : str, optional
-        Option to pass a complete MOTU API request as a string. Caution, user has to replace double quotes “ with single quotes ' in the request.
+        Option to pass a complete MOTU API request as a string. Caution, user has to replace double quotes " with single quotes ' in the request.
     dry_run : bool, optional
         If True, runs query without downloading data.
     netcdf_compression_level : int, optional
@@ -127,6 +136,10 @@ def subset(
         Enable downloading the dataset in a netCDF3 compatible format.
     chunk_size_limit : int, default 100
         Limit the size of the chunks in the dask array. Default is around 100MB. Can be set to 0 to disable chunking. Positive integer values are accepted. This is an experimental feature.
+    raise_if_updating : bool, default False
+        If set, raises a :class:`copernicusmarine.DatasetUpdating` error if the dataset is being updated and the subset interval requested overpasses the updating start date of the dataset. Otherwise, a simple warning is displayed.
+    platform_ids : List[str], optional
+        List of platform IDs to extract. Only available for platform chunked datasets.
 
     Returns
     -------
@@ -146,8 +159,25 @@ def subset(
         pathlib.Path(credentials_file) if credentials_file else None
     )
 
+    if variables is not None:
+        _check_type(variables, list, "variables")
+    if platform_ids is not None:
+        _check_type(platform_ids, list, "platform_ids")
+
     start_datetime = homogenize_datetime(start_datetime)
     end_datetime = homogenize_datetime(end_datetime)
+
+    original_grid_check(
+        minimum_longitude,
+        maximum_longitude,
+        minimum_latitude,
+        maximum_latitude,
+        minimum_x,
+        maximum_x,
+        minimum_y,
+        maximum_y,
+        dataset_part,
+    )
 
     return subset_function(
         dataset_id,
@@ -156,15 +186,16 @@ def subset(
         username,
         password,
         variables,
-        minimum_longitude,
-        maximum_longitude,
-        minimum_latitude,
-        maximum_latitude,
+        minimum_longitude or minimum_x,
+        maximum_longitude or maximum_x,
+        minimum_latitude or minimum_y,
+        maximum_latitude or maximum_y,
         minimum_depth,
         maximum_depth,
         vertical_axis,
         start_datetime,
         end_datetime,
+        platform_ids,
         coordinates_selection_method,
         output_filename,
         file_format,
@@ -181,4 +212,10 @@ def subset(
         netcdf_compression_level,
         netcdf3_compatible,
         chunk_size_limit,
+        raise_if_updating,
     )
+
+
+def _check_type(value, expected_type: type, name: str):
+    if not isinstance(value, expected_type):
+        raise TypeError(f"{name} must be of type {expected_type.__name__}")

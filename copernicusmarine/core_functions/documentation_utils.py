@@ -3,10 +3,10 @@ from copernicusmarine.core_functions.services_utils import CommandType
 SHARED: dict[str, str] = {
     "OVERWRITE_HELP": "If specified and if the file already exists on destination, then it will be overwritten. By default, the toolbox creates a new file with a new index (eg 'filename_(1).nc').",  # noqa: E501
     "USERNAME_HELP": (
-        "The username for authentication."
+        "If not set, search for environment variable COPERNICUSMARINE_SERVICE_USERNAME, then search for a credentials file, else ask for user input."  # noqa
     ),  # a little hardcoding in Python API
     "PASSWORD_HELP": (
-        "The password for authentication."
+        "If not set, search for environment variable COPERNICUSMARINE_SERVICE_PASSWORD, then search for a credentials file, else ask for user input."  # noqa
     ),  # a little hardcoding in Python API
     "LOG_LEVEL_HELP": (
         "Set the details printed to console by the command "
@@ -31,7 +31,7 @@ SHARED: dict[str, str] = {
     "DRY_RUN_HELP": "If True, runs query without downloading data.",
     "RESPONSE_FIELDS_HELP": (
         "List of fields to include in the query metadata. "
-        "The fields are separated by a comma."
+        "The fields are separated by a comma. "
         "To return all fields, use 'all'."
     ),
     "OUTPUT_DIRECTORY_HELP": (
@@ -56,8 +56,13 @@ LOGIN: dict[str, str] = {
         " under the ``$HOME/.copernicusmarine`` directory."
     ),
     "LOGIN_RESPONSE_HELP": (
-        "Exit code\n 0 exit code if the login was successfully "
-        "completed, 1 otherwise."
+        "Exit code\n 0 if the login was successfully completed, 1 otherwise."
+    ),
+    "USERNAME_HELP": (
+        "If not set, search for environment variable COPERNICUSMARINE_SERVICE_USERNAME, else ask for user input."  # noqa
+    ),
+    "PASSWORD_HELP": (
+        "If not set, search for environment variable COPERNICUSMARINE_SERVICE_PASSWORD, else ask for user input."  # noqa
     ),
     "CONFIGURATION_FILE_DIRECTORY_HELP": (
         "Path to the directory where the configuration file will be stored."
@@ -123,7 +128,7 @@ DESCRIBE: dict[str, str] = {
 
 SUBSET: dict[str, str] = {
     "SUBSET_DESCRIPTION_HELP": (
-        "Extracts a subset of data from a specified dataset using given parameters."
+        "Extract a subset of data from a specified dataset using given parameters."
         "\n\nThe datasetID is required and can be found via the ``describe`` "
         "command. "  # has some hardcoding in CLI and python API
     ),
@@ -140,18 +145,40 @@ SUBSET: dict[str, str] = {
         "Minimum longitude for the subset. The value will be transposed "
         "to the interval [-180; 360[."
     ),
+    "MINIMUM_X_HELP": (
+        "Minimum x-axis value for the subset. "
+        "The units are considered either in m or km."
+    ),
+    "ALIAS_MIN_X_HELP": (
+        "Alias for ``--minimum-longitude`` and ``--minimum-x``."
+    ),
     "MAXIMUM_LONGITUDE_HELP": (
         "Maximum longitude for the subset. The value will be transposed"
         " to the interval [-180; 360[."
+    ),
+    "ALIAS_MAX_X_HELP": (
+        "Alias for ``--maximum-longitude`` and ``--maximum-x``."
+    ),
+    "MAXIMUM_X_HELP": (
+        "Maximum x-axis value for the subset."
+        "The units are considered either in m or km."
     ),
     "MINIMUM_LATITUDE_HELP": (
         "Minimum latitude for the subset. Requires a float from -90 "
         "degrees to +90."
     ),
+    "ALIAS_MIN_Y_HELP": (
+        "Alias for ``--minimum-latitude`` and ``--minimum-y``."
+    ),
+    "MINIMUM_Y_HELP": ("Minimum y-axis value for the subset."),
     "MAXIMUM_LATITUDE_HELP": (
         "Maximum latitude for the subset. Requires a float from -90 degrees "
         "to +90."
     ),
+    "ALIAS_MAX_Y_HELP": (
+        "Alias for ``--maximum-latitude`` and ``--maximum-y``."
+    ),
+    "MAXIMUM_Y_HELP": ("Maximum y-axis value for the subset."),
     "MINIMUM_DEPTH_HELP": (
         "Minimum depth for the subset. Requires a positive float (or 0)."
     ),
@@ -165,14 +192,18 @@ SUBSET: dict[str, str] = {
     ),
     "START_DATETIME_HELP": (
         "The start datetime of the temporal subset. Supports common "
-        "format parsed by pendulum (https://pendulum.eustace.io/docs/#parsing)."
+        "format parsed by dateutil (https://dateutil.readthedocs.io/en/stable/parser.html)."  # noqa
     ),  # hardocded in cli: Caution: encapsulate date with “ “ to ensure valid
     # expression for format “%Y-%m-%d %H:%M:%S”.
     "END_DATETIME_HELP": (
         "The end datetime of the temporal subset. Supports common "
-        "format parsed by pendulum (https://pendulum.eustace.io/docs/#parsing)."
+        "format parsed by dateutil (https://dateutil.readthedocs.io/en/stable/parser.html)."  # noqa
     ),  # hardocded in cli: Caution: encapsulate date with “ “
     # to ensure valid expression for format “%Y-%m-%d %H:%M:%S”.
+    "PLATFORM_IDS_HELP": (
+        "Specify platform ID. Can be used multiple times. "
+        "Only available for platform chunked datasets."
+    ),
     "COORDINATES_SELECTION_METHOD_HELP": (
         "If ``inside``, the "
         "selection retrieved will be inside the requested range. If ``strict-"
@@ -191,7 +222,7 @@ SUBSET: dict[str, str] = {
     "FILE_FORMAT_HELP": "Format of the downloaded dataset. Default to NetCDF '.nc'.",
     "MOTU_API_REQUEST_HELP": (
         "Option to pass a complete MOTU API request as a string. Caution, user has to "
-        "replace double quotes “ with single quotes ' in the request."
+        """replace double quotes " with single quotes ' in the request."""
     ),
     "NETCDF_COMPRESSION_LEVEL_HELP": (
         "Specify a compression level to apply on the NetCDF output file. A value of 0 "
@@ -204,6 +235,13 @@ SUBSET: dict[str, str] = {
         "Limit the size of the chunks in the dask array. Default is around 100MB. "
         "Can be set to 0 to disable chunking. Positive integer values are accepted. "
         "This is an experimental feature."
+    ),
+    "RAISE_IF_UPDATING_HELP": (
+        "If set, raises a :class:`copernicusmarine.DatasetUpdating` "
+        "error if the dataset is being updated "
+        "and the subset interval requested overpasses "
+        "the updating start date of the dataset."
+        " Otherwise, a simple warning is displayed."
     ),
 }
 

@@ -93,11 +93,11 @@ build-and-prepare-for-binary:
 # Build with macos windows and linux
 run-using-pyinstaller-windows-latest:
 	pip install -e .
-	python -m PyInstaller --copy-metadata copernicusmarine --icon=toolbox_icon.png --copy-metadata xarray --name copernicusmarine.exe --add-data "C:\Users\runneradmin\micromamba\envs\copernicusmarine-binary\Lib\site-packages\distributed\distributed.yaml;.\distributed" copernicusmarine/command_line_interface/copernicus_marine.py --onefile --copy-metadata zarr
+	python -m PyInstaller --hiddenimport deprecated --copy-metadata copernicusmarine --icon=toolbox_icon.png --copy-metadata xarray --name copernicusmarine.exe --collect-data dask --add-data "C:\Users\runneradmin\micromamba\envs\copernicusmarine-binary\Lib\site-packages\distributed\distributed.yaml;.\distributed" copernicusmarine/command_line_interface/copernicus_marine.py --onefile --copy-metadata zarr
 
 run-using-pyinstaller-macos:
 	pip install -e .
-	python -m PyInstaller --noconfirm --clean --onefile --copy-metadata xarray --name copernicusmarine_macos-${ARCH}.cli  --copy-metada pandas --collect-data dask --collect-data distributed --collect-data tzdata --copy-metadata copernicusmarine copernicusmarine/command_line_interface/copernicus_marine.py --target-architecture=${ARCH} --copy-metadata zarr
+	python -m PyInstaller --hiddenimport deprecated --noconfirm --clean --onefile --copy-metadata xarray --name copernicusmarine_macos-${ARCH}.cli  --copy-metada pandas --collect-data dask --collect-data distributed --collect-data tzdata --copy-metadata copernicusmarine copernicusmarine/command_line_interface/copernicus_marine.py --target-architecture=${ARCH} --copy-metadata zarr
 
 run-using-pyinstaller-macos-13: ARCH = x86_64
 run-using-pyinstaller-macos-13: run-using-pyinstaller-macos
@@ -112,14 +112,14 @@ run-using-pyinstaller-linux:
 	openssl version -a
 	export LD_LIBRARY_PATH=/home/runner/micromamba/envs/copernicusmarine-binary/lib
 	echo $$LD_LIBRARY_PATH
-	python3 -m PyInstaller --collect-all tzdata --copy-metadata copernicusmarine --name copernicusmarine_${DISTRIBUTION}.cli --collect-data distributed --collect-data dask  copernicusmarine/command_line_interface/copernicus_marine.py --onefile --path /opt/hostedtoolcache/Python/3.12.6/x64/lib/python3.12/site-packages --copy-metadata xarray --copy-metadata zarr
+	python3 -m PyInstaller --hiddenimport deprecated --collect-all tzdata --copy-metadata copernicusmarine --name copernicusmarine_${DISTRIBUTION}.cli --collect-data distributed --collect-data dask  copernicusmarine/command_line_interface/copernicus_marine.py --onefile --path /opt/hostedtoolcache/Python/3.12.6/x64/lib/python3.12/site-packages --copy-metadata xarray --copy-metadata zarr
 	chmod +rwx /home/runner/work/copernicus-marine-toolbox/copernicus-marine-toolbox/dist/copernicusmarine_${DISTRIBUTION}.cli
 
 run-using-pyinstaller-ubuntu-22.04: DISTRIBUTION = linux-glibc-2.35
 run-using-pyinstaller-ubuntu-22.04: run-using-pyinstaller-linux
 
-run-using-pyinstaller-ubuntu-20.04: DISTRIBUTION = linux-glibc-2.31
-run-using-pyinstaller-ubuntu-20.04: run-using-pyinstaller-linux
+run-using-pyinstaller-ubuntu-24.04: DISTRIBUTION = linux-glibc-2.39
+run-using-pyinstaller-ubuntu-24.04: run-using-pyinstaller-linux
 
 # Tests for the binaries
 run-tests-binaries:
@@ -127,3 +127,10 @@ run-tests-binaries:
 
 change-name-binary:
 	mv dist/copernicusmari* ./copernicusmarine.cli
+
+update-tests-snapshots:
+	pytest --snapshot-update tests/test_help_command_interface.py
+	pytest --snapshot-update tests/test_dependencies_updates.py
+	pytest --snapshot-update tests/test_describe_released_date.py
+	pytest --snapshot-update tests/test_help_command_interface.py
+	pytest --snapshot-update tests/test_query_builder.py::TestQueryBuilder::test_return_available_fields

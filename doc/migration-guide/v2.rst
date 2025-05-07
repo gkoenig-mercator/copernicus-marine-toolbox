@@ -1,7 +1,621 @@
-Migration guide v2
-===================
+.. _migration-v2:
 
-Still in construction, please refer to the `help desk of mercator <https://help.marine.copernicus.eu/en/articles/9978784-what-s-new-in-the-pre-release-of-version-2-0-0-of-the-copernicus-marine-toolbox>`_ for more information about the
-v2 prereleases.
+Migration to v2
+========================
 
-You can also check the :ref:`changelogs <changelog>` for more information about the changes.
+This page aims at helping users migrating from ``copernicusmarine~=1.0.0`` to ``copernicusmarine>=2.0.0``. Mostly breaking changes will be covered on this page.
+New features will not be included here, but you can refer to the documentation, particularly the :ref:`Change log <changelog>`, for more information about the updates.
+
+.. warning::
+    One of the important breaking changes is that there is no prompt to confirm the download. Please use ``--dry-run`` if you do not want to download the files.
+    The ``--force-download`` option has been removed.
+
+General
+------------------
+
+Removed ``--force-download`` option
+""""""""""""""""""""""""""""""""""""""""
+
+Before, it was necessary to accept a prompt to download the data.
+Such prompt could be skipped adding the option ``--force-download`` at the end of the call.
+In v2, the toolbox will download all the data requested without a prompt.
+
+.. code-block:: bash
+
+    # In v1
+    > copernicusmarine subset --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022
+    ...
+    Do you want to download the data? [y/N]:
+
+    # In v2: all the data are being downloaded and the returned fields are limited by default
+    > copernicusmarine subset --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022
+    ...
+    {
+      "file_size": 100959.3893129771,
+      "data_transfer_size": 144079.14503816795,
+      "status": "000",
+      "message": "The request was successful."
+    }
+
+
+If you do not want to download the data but rather check what would be downloaded and if the query is correct,
+you can use the option ``--dry-run``, which will return a response object containing
+information about the data that would be downloaded.
+
+.. code-block:: bash
+
+    # In v1
+    > copernicusmarine subset --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022
+    ...
+    Do you want to download the data? [y/N]: n
+    ERROR: Abort
+
+    # In v2: no data is being downloaded and by default returns all the return fields
+    > copernicusmarine subset --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022 --dry-run
+    ...
+    {
+      "file_path": "cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_uo-vo_180.00W-179.92E_80.00S-90.00N_0.49-5727.92m_2022-06-01-2024-11-01.nc",
+      "output_directory": ".",
+      "filename": "cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_uo-vo_180.00W-179.92E_80.00S-90.00N_0.49-5727.92m_2022-06-01-2024-11-01.nc",
+      "file_size": 100959.3893129771,
+      "data_transfer_size": 144079.14503816795,
+      "variables": [
+        "uo",
+        "vo"
+      ],
+      "coordinates_extent": [
+        {
+          "minimum": -180.0,
+          "maximum": 179.91668701171875,
+          "unit": "degrees_east",
+          "coordinate_id": "longitude"
+        },
+        {
+          "minimum": -80.0,
+          "maximum": 90.0,
+          "unit": "degrees_north",
+          "coordinate_id": "latitude"
+        },
+        {
+          "minimum": "2022-06-01T00:00:00+00:00",
+          "maximum": "2024-11-01T00:00:00+00:00",
+          "unit": "iso8601",
+          "coordinate_id": "time"
+        },
+        {
+          "minimum": 0.49402499198913574,
+          "maximum": 5727.9169921875,
+          "unit": "m",
+          "coordinate_id": "depth"
+        }
+      ],
+      "status": "001",
+      "message": "The request was run with the dry-run option. No data was downloaded.",
+      "file_status": "DOWNLOADED"
+    }
+
+
+
+.. warning::
+  Without the ``--dry-run`` option, the data will be downloaded even if the query is very large.
+
+.. _cache-system:
+
+Removed ``--no-metadata-cache`` and ``--overwrite-metadata-cache`` options (removal of the cache system)
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+In v1, we used to cache the result of the describe using ``cachier`` library.
+The toolbox would have to fetch the whole metadata catalogue from the Copernicus Marine server every time we wanted to do a subset or a get.
+With the cache system, this full fetch of the catalogue was necessary once a day (forced update every day to keep data up to date).
+
+In v2, caching is no longer used, and metadata is fetched on every request.
+However, the metadata fetching process has been optimized to ensure efficiency.
+When performing a ``subset`` or ``get`` operation, only the necessary metadata is retrieved, making the process fast.
+Specifically, the toolbox fetches metadata only for the requested datasetID and productID.
+
+Advantages of the new system:
+
+* No problems with cache location: some users where on read-only systems and could not use the cache system.
+* No cross-version problems with ``cachier`` library: the cache would not work if Python version was changed.
+* Up to date data: the cache was updated every day, but if the user wanted to have the latest data, they would have to force the update.
+* Still fast: only fetching the necessary metadata, thus the toolbox is still fast.
+
+.. code-block:: bash
+
+    # In v1
+    copernicusmarine subset --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022
+    # would take a long time the first time, but would be fast the next times
+
+    # In v2
+    # always fast
+    copernicusmarine subset --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022
+    # Also allowed to have --dataset-id in the describe command
+    copernicusmarine describe --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m
+
+That also means that the options related to the cache system doesn't exist anymore.
+Hence, ``--overwrite-metadata-cache`` and ``--no-metadata-cache`` have been removed.
+
+.. note::
+
+    The dependecy to ``cachier`` has been completely removed from the toolbox.
+
+
+Subset
+------------------
+
+For more information, please see :ref:`the documentation page of the subset function <subset-page>`.
+
+.. _netcdf4-migration:
+
+Removed ``netCDF4`` dependency
+"""""""""""""""""""""""""""""""""""
+
+In v1, the toolbox was using the ``netCDF4`` library to write the netCDF files.
+
+In v2, the toolbox is using the ``h5netcdf`` library to write the netCDF files.
+This changed was made to have a more operational toolbox. Indeed, when Python 3.13 was release the ``netCDF4`` library was not compatible with it
+for some time whereas the ``h5netcdf`` library was from the beginning.
+
+This change should be transparent to the user since the output files remain in netCDF format.
+However, the ``h5netcdf`` library does not support netCDF3 files.
+If ``netCDF4`` is installed, though, the toolbox will use it to write netCDF3 files.
+
+.. code-block:: bash
+
+    # In v1
+    copernicusmarine subset --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022 --netcdf3-compatible
+
+    # In v2
+    # maybe need to install netCDF4 to have netCDF3 files
+    pip install netCDF4
+    # or depending on the environment
+    conda -c conda-forge install netCDF4
+    # then it should work
+    copernicusmarine subset --dataset-id cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022 --netcdf3-compatible
+
+Added ``--coordinates-selection-method`` option that replaces ``--subset-method``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+See the :ref:`documentation about coordinates selection method <coordinates-selection-method>` for more details on how the new option works.
+You can find practical examples and more details.
+
+The option ``--subset-method`` has been removed and its functionality can be replaced by using the ``--coordinates-selection-method`` option.
+Setting ``subset-method`` allowed the user to specify whether the toolbox should raise an error when they were outside the dataset bounds or not.
+
+In a sense, the new option ``--coordinates-selection-method`` is different and is used to select the method to select the coordinates.
+
+However, the ``--coordinates-selection-method strict-inside`` method is equivalent to the old ``--subset-method inside`` method.
+
+.. code-block:: bash
+
+    # In v1
+    copernicusmarine subset --subset-method inside
+
+    # In v2
+    copernicusmarine subset --coordinates-selection-method strict-inside
+
+:class:`copernicusmarine.ResponseSubset` as object of the response
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Output of the ``subset`` function has been changed. It is now a :class:`copernicusmarine.ResponseSubset` object in the Python interface or as a
+JSON object in the command line interface. It used to be the path of the downloaded file.
+
+.. code-block:: python
+
+    # In v1
+    subset_file_paths = copernicusmarine.subset(
+        dataset_id="cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m", start_datetime="2022"
+    )
+    print(type(subset_file_paths))  # <class 'pathlib.Path'>
+    # [pathlib.Path("cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_uo-vo_180.00W-179.92E_80.00S-90.00N_0.49-5727.92m_2022-06-01-2024-11-01.nc")]
+
+    # In v2
+    response_subset = copernicusmarine.subset(
+        dataset_id="cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m",
+        start_datetime="2022",
+        dry_run=True,
+    )
+    print(type(response_subset))  # <class 'copernicusmarine.ResponseSubset'>
+    for field, value in response_subset.model_dump().items():
+        print(f"{field}: {value}")
+
+    # file_path: cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_uo-vo_180.00W-179.92E_80.00S-90.00N_0.49-5727.92m_2022-06-01-2024-11-01.nc
+    # output_directory: .
+    # filename: cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_uo-vo_180.00W-179.92E_80.00S-90.00N_0.49-5727.92m_2022-06-01-2024-11-01.nc
+    # file_size: 100959.3893129771
+    # data_transfer_size: 144079.14503816795
+    # variables: ['uo', 'vo']
+    # coordinates_extent: [{'minimum': -180.0, 'maximum': 179.91668701171875, 'unit': 'degrees_east', 'coordinate_id': 'longitude'}, {'minimum': -80.0, 'maximum': 90.0, 'unit': 'degrees_north', 'coordinate_id': 'latitude'}, {'minimum': '2022-06-01T00:00:00+00:00', 'maximum': '2024-11-01T00:00:00+00:00', 'unit': 'iso8601', 'coordinate_id': 'time'}, {'minimum': 0.49402499198913574, 'maximum': 5727.9169921875, 'unit': 'm', 'coordinate_id': 'depth'}]
+    # status: 001
+    # message: The request was run with the dry-run option. No data was downloaded.
+    # file_status: DOWNLOADED
+
+    from copernicusmarine import ResponseSubset  # Can be imported like this for typing
+
+
+    def my_function(response: ResponseSubset):
+        pass
+
+In the command line interface, it is possible to filter the result using the ``--response-fields`` option.
+The input of the option is a comma-separated list of the fields to be included in the output.
+The available fields are the name of the fields of the :class:`copernicusmarine.ResponseSubset` object.
+
+.. code-block:: bash
+
+    copernicusmarine subset -i cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m -t 2022 -r minimum,data_transfer_size,coordinate_id --dry-run
+
+    # Returns
+    {
+      "data_transfer_size": 144079.14503816795,
+      "coordinates_extent": [
+        {
+          "minimum": -180.0,
+          "coordinate_id": "longitude"
+        },
+        {
+          "minimum": -80.0,
+          "coordinate_id": "latitude"
+        },
+        {
+          "minimum": "2022-06-01T00:00:00+00:00",
+          "coordinate_id": "time"
+        },
+        {
+          "minimum": 0.49402499198913574,
+          "coordinate_id": "depth"
+        }
+      ]
+    }
+
+Option ``--vertical-dimension-output`` renamed
+""""""""""""""""""""""""""""""""""""""""""""""""
+
+The option ``--vertical-dimension-output`` has been renamed to ``--vertical-axis``.
+It now takes a string as input, either ``depth`` or ``elevation``.
+
+.. code-block:: bash
+
+    # To get elevation instead of depth (default is depth)
+    # In v1
+    copernicusmarine subset --vertical-dimension-output True
+
+    # In v2
+    copernicusmarine subset --vertical-axis elevation
+
+Option ``--overwrite-output-data`` renamed to ``--overwrite``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The option ``--overwrite-output-data`` has been deleted, use directly ``--overwrite`` instead.
+
+.. code-block:: bash
+
+    # In v1
+    copernicusmarine subset --overwrite-output-data
+
+    # In v2
+    copernicusmarine subset --overwrite
+
+.. _netcdf-compression-level-migration:
+
+Option ``--netcdf-compression-enabled`` deleted
+"""""""""""""""""""""""""""""""""""""""""""""""""
+
+The option ``--netcdf-compression-enabled`` has been removed. The exact same result can be obtained with the ``--netcdf-compression-level`` option directly.
+
+With that change the option ``--netcdf-compression-level`` is now a flag, so you could do:
+
+.. code-block:: bash
+
+    # In v1
+    copernicusmarine subset --netcdf-compression-enabled
+
+    # In v2
+    copernicusmarine subset --netcdf-compression-level
+
+    # and can choose the level of compression (default is 1 when flag is set)
+    copernicusmarine subset --netcdf-compression-level 5
+
+
+Describe
+------------------
+
+For more information, please see :ref:`the documentation page of the describe function <describe-page>`.
+
+:class:`copernicusmarine.CopernicusMarineCatalogue` as response
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+When doing a describe in the Python interface, the response will be a :class:`copernicusmarine.CopernicusMarineCatalogue`.
+
+.. code-block:: python
+
+    import json
+    import copernicusmarine
+
+    # In v1
+    a_json_str = copernicusmarine.describe()
+    print(type(a_json_str))  # <class 'str'>
+    a_dict = json.loads(a_json_str)
+
+    # In v2
+    now_a_copernicus_marine_catalogue = copernicusmarine.describe()
+    print(
+        type(now_a_copernicus_marine_catalogue)
+    )  # <class 'copernicusmarine.CopernicusMarineCatalogue'>
+
+    from copernicusmarine import (
+        CopernicusMarineCatalogue,
+    )  # Can be imported like this for typings
+
+
+    def my_function(catalogue: CopernicusMarineCatalogue):
+        pass
+
+In the command line interface, this object is serialized to a JSON object.
+
+Output modified
+""""""""""""""""""
+
+The content of the output of the ``describe`` has been modified:
+
+* Now field ``services`` has been simplified and contains directly the service name, ``service_type`` has been removed.
+
+.. code-block:: bash
+
+    # In v1
+    {
+      "product_id": "ANTARCTIC_OMI_SI_extent",
+      "datasets": [
+        {
+          "dataset_id": "antarctic_omi_si_extent",
+          "versions": [
+            {
+              "parts": [
+                {
+                  "services": [
+                    {
+                      "service_type": {
+                        "service_name": "original-files",
+                        "service_short_name": "files"
+                        }
+                      "uri": "https://s3.waw3-1
+                      ...
+                    },
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+      }
+
+    # In v2
+    {
+      "product_id": "ANTARCTIC_OMI_SI_extent",
+      "datasets": [
+        {
+          "dataset_id": "antarctic_omi_si_extent",
+          "versions": [
+            {
+              "parts": [
+                {
+                  "services": [
+                    {
+                      "service_name": "original-files",
+                      "service_short_name": "files"
+                      "uri": "https://s3.waw3-1
+                      ...
+                    },
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+      }
+
+* The field ``units`` for coordinates has been renamed to ``coordinate_unit``.
+
+Options ``--include-x`` deprecated for ``--return-fields`` and ``--exclude-fields``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+To filter the output of a describe, now you can use the ``--return-fields`` and ``--exclude-fields`` options.
+The old options ``--include-dataset``, ``--include-keywords``, ``--include-description`` and ``--include-all`` have been removed in favor of the more
+flexible ``--return-fields`` and ``--exclude-fields``.
+
+As you can expect, this only concerns the command line interface. The Python API will return the full object.
+
+Such options allow to select respectively the fields you want to include or exclude from the output. You just need to add them as a comma-separated list.
+
+.. code-block:: bash
+
+    copernicusmarine describe --return-fields uri,product_id,dataset_id,service_name
+
+Here the first product is shown. As you can see, only the required fields and their respective parents are shown.
+
+.. code-block:: json
+
+    {
+      "product_id": "ANTARCTIC_OMI_SI_extent",
+      "datasets": [
+        {
+          "dataset_id": "antarctic_omi_si_extent",
+          "versions": [
+            {
+              "parts": [
+                {
+                  "services": [
+                    {
+                      "service_name": "original-files",
+                      "uri": "https://s3.waw3-1.cloudferro.com/mdl-native-10/native/ANTARCTIC_OMI_SI_extent/antarctic_omi_si_extent_202207/antarctic_omi_si_extent_19930115_P20220328.nc"
+                    },
+                    {
+                      "service_name": "omi-arco",
+                      "uri": "https://s3.waw3-1.cloudferro.com/mdl-arco-time-001/arco/ANTARCTIC_OMI_SI_extent/antarctic_omi_si_extent_202207/omi.zarr"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+You can also use the 'all' shortcut to return all the fields and then exclude if necessary:
+
+.. code-block:: bash
+
+    copernicusmarine describe -r all --exclude-fields uri,product_id,dataset_id,service_name,descrpition,keywords
+
+.. note::
+
+    By default all fields are now shown in the output. In v1, "keywords", "description" and "datasets" were not shown by default.
+    To have a similar output as before, you can exclude them with the option ``--exclude-fields datasets,description,keywords``.
+
+
+Option ``--include-versions`` renamed to ``--show-all-versions``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The option ``--include-versions`` has been renamed to ``--show-all-versions``.
+The behaviour is the same.
+
+Get
+------------------
+
+For more information, please see :ref:`the documentation page of the get function <get-page>`.
+
+:class:`copernicusmarine.ResponseGet` as object of the response
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Output of the ``get`` function has been changed. It is now a :class:`copernicusmarine.ResponseGet` object in the Python interface or as a
+JSON object in the command line interface. It used to be a list of paths to the downloaded files.
+
+.. code-block:: python
+
+    # In v1
+    get_file_paths = copernicusmarine.get(
+        dataset_id="cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m",
+        filter="*glo12_rg_1m-m_202411-202411_3D-uovo_hcst.nc",
+    )
+    print(type(get_file_paths))  # <class 'list'>
+    # [pathlib.Path("GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_202406/2024/glo12_rg_1m-m_202411-202411_3D-uovo_hcst.nc")]
+
+    # In v2
+    response_get = copernicusmarine.get(
+        dataset_id="cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m",
+        filter="*glo12_rg_1m-m_202411-202411_3D-uovo_hcst.nc",
+        dry_run=True,
+    )
+    print(type(response_get))  # <class 'copernicusmarine.ResponseGet'>
+
+    for field, value in response_get.model_dump(
+        exclude_none=True, exclude_unset=True
+    ).items():
+        if field == "files":
+            for file_get in value:
+                for file_field, file_value in file_get.items():
+                    print(f"{file_field}: {file_value}")
+        else:
+            print(f"{field}: {value}")
+
+    # s3_url: s3://mdl-native-14/native/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_202406/2024/glo12_rg_1m-m_202411-202411_3D-uovo_hcst.nc
+    # https_url: https://s3.waw3-1.cloudferro.com/mdl-native-14/native/GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_202406/2024/glo12_rg_1m-m_202411-202411_3D-uovo_hcst.nc
+    # file_size: 1857.429880142212
+    # last_modified_datetime: 2024-12-10T10:04:18.141000+00:00
+    # etag: "430b098c4bd6ed9da8fa011b2c57a10a-233"
+    # file_format: .nc
+    # output_directory: .
+    # filename: glo12_rg_1m-m_202411-202411_3D-uovo_hcst.nc
+    # file_path: GLOBAL_ANALYSISFORECAST_PHY_001_024/cmems_mod_glo_phy-cur_anfc_0.083deg_P1M-m_202406/2024/glo12_rg_1m-m_202411-202411_3D-uovo_hcst.nc
+    # file_status: DOWNLOADED
+    # number_of_files_to_download: 1
+    # total_size: 1857.429880142212
+    # status: 001
+    # message: The request was run with the dry-run option. No data was downloaded.
+
+    from copernicusmarine import ResponseGet  # Can be imported like this for typing
+
+
+    def my_function(response: ResponseGet):
+        pass
+
+In the command line interface, it is possible to filter the result using the ``--response-fields`` option.
+The input of the option is a comma-separated list of the fields to be included in the output.
+The available fields are the name of the fields of the :class:`copernicusmarine.ResponseGet` object.
+
+.. code-block:: bash
+
+    copernicusmarine get ... -r file_path,s3_url > request-metadata.json
+
+Option ``--overwrite-output-data`` renamed to ``--overwrite``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The option ``--overwrite-output-data`` has been deleted, use directly ``--overwrite`` instead.
+
+.. code-block:: bash
+
+    # In v1
+    copernicusmarine get --overwrite-output-data
+
+    # In v2
+    copernicusmarine get --overwrite
+
+Option ``--show-outputnames`` deleted
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+Before, this option would allow to output the name of the files.
+We included such names in the :class:`copernicusmarine.ResponseGet` object that results for the call (either dry-run or not).
+
+.. code-block:: bash
+
+    # In v1
+    copernicusmarine get -i cmems_mod_arc_bgc_my_ecosmo_P1D-m --filter "*202105/2021/12*" --show-outputnames > output.json
+
+    # In v2
+    copernicusmarine get -i cmems_mod_arc_bgc_my_ecosmo_P1D-m --filter "*202105/2021/12*" -r file_path > output.json
+
+In the Python interface, the ``file_path`` key of the response object contains the same information that was in the ``--show-outputnames`` option.
+
+.. code-block:: python
+
+    # In v2
+    response_get = copernicusmarine.get(...)
+    files_local_paths = [file_get.file_path for file_get in response_get.files]
+
+Login
+------------------
+
+For more information, please see :ref:`the documentation page of the login function <login-page>`.
+
+Options ``--overwrite`` and ``--overwrite-configuration-file`` renamed to ``--force-overwrite``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+The options ``--overwrite`` and ``--overwrite-configuration-file`` have been renamed to ``--force-overwrite``. The option is still the same.
+
+.. code-block:: bash
+
+    # In v1
+    copernicusmarine login --overwrite
+    # or
+    copernicusmarine login --overwrite-configuration-file
+
+    # In v2
+    copernicusmarine login --force-overwrite
+
+Option ``--skip-if-user-logged-in`` deleted
+"""""""""""""""""""""""""""""""""""""""""""""
+
+The option ``--skip-if-user-logged-in`` has been deleted.
+The option ``--check-credentials-valid`` can be used to check that the credentials are correctly set.
+
+Now, credentials can be checked as followed:
+
+.. code-block:: python
+
+    # In v1
+    copernicusmarine.login(skip_if_user_logged_in=True)
+
+    # In v2
+    if not copernicusmarine.login(check_credentials_valid=True):
+        copernicusmarine.login()

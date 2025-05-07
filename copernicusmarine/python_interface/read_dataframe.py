@@ -2,9 +2,8 @@ import pathlib
 from datetime import datetime
 from typing import List, Optional, Union
 
-import pandas
+import pandas as pd
 
-from copernicusmarine.catalogue_parser.request_structure import LoadRequest
 from copernicusmarine.core_functions.deprecated_options import (
     DEPRECATED_OPTIONS,
     deprecated_python_option,
@@ -15,15 +14,18 @@ from copernicusmarine.core_functions.models import (
     CoordinatesSelectionMethod,
     VerticalAxis,
 )
-from copernicusmarine.download_functions.download_arco_series import (
+from copernicusmarine.core_functions.request_structure import LoadRequest
+from copernicusmarine.core_functions.services_utils import CommandType
+from copernicusmarine.core_functions.utils import original_grid_check
+from copernicusmarine.download_functions.download_zarr import (
     read_dataframe_from_arco_series,
 )
 from copernicusmarine.download_functions.subset_parameters import (
     DepthParameters,
     GeographicalParameters,
-    LatitudeParameters,
-    LongitudeParameters,
     TemporalParameters,
+    XParameters,
+    YParameters,
 )
 from copernicusmarine.python_interface.exception_handler import (
     log_exception_and_exit,
@@ -47,17 +49,23 @@ def read_dataframe(
     maximum_longitude: Optional[float] = None,
     minimum_latitude: Optional[float] = None,
     maximum_latitude: Optional[float] = None,
+    minimum_x: Optional[float] = None,
+    maximum_x: Optional[float] = None,
+    minimum_y: Optional[float] = None,
+    maximum_y: Optional[float] = None,
     minimum_depth: Optional[float] = None,
     maximum_depth: Optional[float] = None,
     vertical_axis: VerticalAxis = DEFAULT_VERTICAL_AXIS,  # noqa
-    start_datetime: Optional[Union[datetime, str]] = None,
-    end_datetime: Optional[Union[datetime, str]] = None,
+    start_datetime: Optional[Union[datetime, pd.Timestamp, str]] = None,
+    end_datetime: Optional[Union[datetime, pd.Timestamp, str]] = None,
     coordinates_selection_method: CoordinatesSelectionMethod = (
         DEFAULT_COORDINATES_SELECTION_METHOD
     ),
     service: Optional[str] = None,
     credentials_file: Optional[Union[pathlib.Path, str]] = None,
-) -> pandas.DataFrame:
+    disable_progress_bar: bool = False,
+    platform_ids: Optional[List[str]] = None,
+) -> pd.DataFrame:
     """
     Immediately loads a Pandas DataFrame into memory from a specified dataset.
 
@@ -93,16 +101,19 @@ def read_dataframe(
     vertical_axis : str, optional
         Consolidate the vertical dimension (the z-axis) as requested: depth with descending positive values, elevation with ascending positive values. Default is depth.
     start_datetime : Union[datetime, str], optional
-        The start datetime of the temporal subset. Supports common format parsed by pendulum (https://pendulum.eustace.io/docs/#parsing).
+        The start datetime of the temporal subset. Supports common format parsed by dateutil (https://dateutil.readthedocs.io/en/stable/parser.html).
     end_datetime : Union[datetime, str], optional
-        The end datetime of the temporal subset. Supports common format parsed by pendulum (https://pendulum.eustace.io/docs/#parsing).
+        The end datetime of the temporal subset. Supports common format parsed by dateutil (https://dateutil.readthedocs.io/en/stable/parser.html).
     coordinates_selection_method : str, optional
         If ``inside``, the selection retrieved will be inside the requested range. If ``strict-inside``, the selection retrieved will be inside the requested range, and an error will be raised if the values don't exist. If ``nearest``, the extremes closest to the requested values will be returned. If ``outside``, the extremes will be taken to contain all the requested interval. The methods ``inside``, ``nearest`` and ``outside`` will display a warning if the request is out of bounds.
     service : str, optional
-        Force download through one of the available services using the service name among ['arco-geo-series', 'arco-time-series', 'omi-arco', 'static-arco'] or its short name among ['geoseries', 'timeseries', 'omi-arco', 'static-arco'].
+        Force download through one of the available services using the service name among ['arco-geo-series', 'arco-time-series', 'omi-arco', 'static-arco', 'arco-platform-series'] or its short name among ['geoseries', 'timeseries', 'omi-arco', 'static-arco', 'platformseries'].
     credentials_file : Union[pathlib.Path, str], optional
         Path to a credentials file if not in its default directory (``$HOME/.copernicusmarine``). Accepts .copernicusmarine-credentials / .netrc or _netrc / motuclient-python.ini files.
-
+    disable_progress_bar : bool, optional
+        Flag to hide progress bar.
+    platform_ids : List[str], optional
+        List of platform IDs to extract. Only available for platform chunked datasets.
 
     Returns
     -------
@@ -115,6 +126,27 @@ def read_dataframe(
     credentials_file = (
         pathlib.Path(credentials_file) if credentials_file else None
     )
+    if dataset_part == "originalGrid":
+        geographicalparameters = GeographicalParameters(
+            y_axis_parameters=YParameters(
+                minimum_y=minimum_y, maximum_y=maximum_y, coordinate_id="y"
+            ),
+            x_axis_parameters=XParameters(
+                minimum_x=minimum_x, maximum_x=maximum_x, coordinate_id="x"
+            ),
+            projection="originalGrid",
+        )
+    else:
+        geographicalparameters = GeographicalParameters(
+            y_axis_parameters=YParameters(
+                minimum_y=minimum_latitude,
+                maximum_y=maximum_latitude,
+            ),
+            x_axis_parameters=XParameters(
+                minimum_x=minimum_longitude,
+                maximum_x=maximum_longitude,
+            ),
+        )
     load_request = LoadRequest(
         dataset_id=dataset_id,
         force_dataset_version=dataset_version,
@@ -122,16 +154,8 @@ def read_dataframe(
         username=username,
         password=password,
         variables=variables,
-        geographical_parameters=GeographicalParameters(
-            latitude_parameters=LatitudeParameters(
-                minimum_latitude=minimum_latitude,
-                maximum_latitude=maximum_latitude,
-            ),
-            longitude_parameters=LongitudeParameters(
-                minimum_longitude=minimum_longitude,
-                maximum_longitude=maximum_longitude,
-            ),
-        ),
+        platform_ids=platform_ids,
+        geographical_parameters=geographicalparameters,
         temporal_parameters=TemporalParameters(
             start_datetime=start_datetime,
             end_datetime=end_datetime,
@@ -144,10 +168,25 @@ def read_dataframe(
         ),
         force_service=service,
         credentials_file=credentials_file,
+        disable_progress_bar=disable_progress_bar,
     )
+
+    original_grid_check(
+        minimum_longitude,
+        maximum_longitude,
+        minimum_latitude,
+        maximum_latitude,
+        minimum_x,
+        maximum_x,
+        minimum_y,
+        maximum_y,
+        dataset_part,
+    )
+
     dataset = load_data_object_from_load_request(
         load_request,
         read_dataframe_from_arco_series,
         chunks_factor_size_limit=100,
+        command_type=CommandType.READ_DATAFRAME,
     )
     return dataset

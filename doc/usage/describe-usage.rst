@@ -60,6 +60,8 @@ To save the JSON output to a file, you can use the following command:
     In the case of the Python interface, the describe will return directly the :class:`copernicusmarine.CopernicusMarineCatalogue` object.
     The catalogue will be complete except if you use the ``dataset_id``, ``product_id`` or ``contains`` arguments.
 
+.. _return-fields:
+
 ``--return-fields`` and ``--exclude-fields`` options
 ----------------------------------------------------------------
 
@@ -126,55 +128,42 @@ If you want, for example, the ``cmems_obs-ins_glo_phy-temp-sal_my_cora_irr`` dat
 
 .. code-block:: bash
 
-    copernicusmarine describe --include-datasets --contains cmems_obs-ins_glo_phy-temp-sal_my_cora_irr
+    copernicusmarine describe --return-fields datasets --contains cmems_obs-ins_glo_phy-temp-sal_my_cora_irr
 
 The output will be something like this:
 
 .. code-block:: json
 
     {
-    "products": [
-        {
-        "title": "Global Ocean- CORA- In-situ Observations Yearly Delivery in Delayed Mode",
-        "product_id": "INSITU_GLO_PHY_TS_DISCRETE_MY_013_001",
-        "thumbnail_url": "https://mdl-metadata.s3.waw3-1.cloudferro.com/metadata/thumbnails/INSITU_GLO_PHY_TS_DISCRETE_MY_013_001.jpg",
-        "digital_object_identifier": "10.17882/46219",
-        "sources": [
-            "In-situ observations"
-        ],
-        "processing_level": "Level 2",
-        "production_center": "OceanScope (France)",
-        "datasets": [
+        "products": [
             {
-            "dataset_id": "cmems_obs-ins_glo_phy-temp-sal_my_cora_irr",
-            "dataset_name": "cmems_obs-ins_glo_phy-temp-sal_my_cora_irr_202311",
-            "versions": [
+            "datasets": [
                 {
-                "label": "202311",
-                "parts": [
+                "dataset_id": "cmems_obs-ins_glo_phy-temp-sal_my_cora_irr",
+                "dataset_name": "cmems_obs-ins_glo_phy-temp-sal_my_cora_irr_202311",
+                "versions": [
                     {
-                    "name": "default",
-                    "services": [
+                    "label": "202411",
+                    "parts": [
                         {
-                        "service_type": {
+                        "name": "default",
+                        "services": [
+                            {
                             "service_name": "original-files",
-                            "short_name": "files"
-                        },
-                        "service_format": null,
-                        "uri": "https://s3.waw3-1.cloudferro.com/mdl-native-03/native/INSITU_GLO_PHY_TS_DISCRETE_MY_013_001/cmems_obs-ins_glo_phy-temp-sal_my_cora_irr_202311",
-                        "variables": []
+                            "service_short_name": "files",
+                            "uri": "https://s3.waw3-1.cloudferro.com/mdl-native-03/native/INSITU_GLO_PHY_TS_DISCRETE_MY_013_001/cmems_obs-ins_glo_phy-temp-sal_my_cora_irr_202411",
+                            "variables": []
+                            }
+                        ],
+                        "released_date": "2024-11-26T13:00:00.000Z"
                         }
-                    ],
-                    "retired_date": null,
-                    "released_date": "2023-11-30T11:00:00.000Z"
+                    ]
                     }
                 ]
                 }
             ]
             }
         ]
-        }
-    ]
     }
 
 
@@ -187,7 +176,7 @@ You can either use the ``--dataset_id`` option, the ``--product_id`` option or b
 
 **Example:**
 
-Let's filter to returned values for simplicity.
+Let's filter to exclude services and return only datasets and product_id for simplicity.
 
 .. code-block:: bash
 
@@ -225,6 +214,23 @@ The output will be something like this:
 ``--show-all-versions`` option
 -------------------------------
 
-The describe command will show you only one version of a dataset, prioritising the most recent version and the ones that are not planned to be retired.
+The ``describe`` command will show you only one version of a dataset, prioritising the most recent version and the ones that are not planned to be retired.
 If you want to see all versions, you can use the ``--show-all-versions`` option.
 It allows in some cases to access the metadata of datasets that are to be released or datasets that will be retired soon.
+
+``arco_updating_start_date`` and ``arco_updated_date`` fields
+---------------------------------------------------------------
+
+These fields on the :class:`copernicusmarine.CopernicusMarinePart` can help to know if when the requested data has been updated and if it is still being updated.
+It only concerns the ARCO services i.e. all services for the subsetting. It is not meant to indicate when the original data has been updated.
+
+``arco_updated_date`` is the date when the ARCO data has been updated for the last time.
+For example, if ``arco_updated_date=="2025-03-26T08:50:15.873Z"`` it means that the last update of the dataset was on the 26th of March 2025.
+
+``arco_updating_start_date`` is the time point of the dataset from which the data is being updated.
+For example, if ``arco_updating_start_date=="1990-05-16T08:50:15.873Z"`` it means that the dataset is being updated from the time point: 16th of May 1990.
+See `the raise-if-updating <raise-if-updating>`_ option to be sure your requested data is up-to-date.
+
+.. warning::
+
+    ``arco_updating_start_date`` is a date that designate a value in the dataset contrary to ``arco_updated_date`` which is a "real life" date.

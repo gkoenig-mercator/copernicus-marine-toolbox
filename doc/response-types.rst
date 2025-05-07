@@ -4,11 +4,11 @@
 Response types
 =================
 
-The Copernicus Marine toolbox commands return some information when downloading.
+The Copernicus Marine Toolbox commands return some information when downloading.
 It can contain useful metadata for the user.
 
 For the :ref:`command line interface <command-line-interface>`, all the returned data will
-be in a form of a json sent to stdout (whereas the logs are sent to stderr).
+be in a form of a JSON sent to stdout (whereas the logs are sent to stderr).
 You can easily save it locally by doing, for example:
 
 .. code-block:: bash
@@ -91,7 +91,7 @@ Subtypes
 .. autoclass:: copernicusmarine.CopernicusMarineService()
     :members:
     :undoc-members:
-    :exclude-members: model_computed_fields, model_config, model_fields, from_metadata_item
+    :exclude-members: model_computed_fields, model_config, model_fields, from_metadata_item, get_axis_coordinate_id_mapping
     :member-order: bysource
 
 .. autoclass:: copernicusmarine.CopernicusMarineVariable()

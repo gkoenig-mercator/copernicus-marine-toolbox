@@ -198,6 +198,8 @@ class TestPythonInterface:
         )
 
         assert dataframe is not None
+        assert dataframe.size > 0
+        assert "ERROR" not in caplog.text
 
     def test_open_dataset_with_retention_date(self):
         dataset = open_dataset(
@@ -308,7 +310,13 @@ class TestPythonInterface:
         )
         size_uncompressed = (tmp_path / "uncompressed_data.nc").stat().st_size
         size_compressed = (tmp_path / "compressed_data.nc").stat().st_size
-        assert size_uncompressed > 1.5 * size_compressed
+        assert len(dataset_uncompressed.longitude.values) > 4300
+        assert len(dataset_compressed.longitude.values) > 4300
+        assert len(dataset_uncompressed.latitude.values) > 2000
+        assert len(dataset_compressed.latitude.values) > 2000
+
+        assert size_uncompressed > 2 * size_compressed
+
         diff = dataset_uncompressed - dataset_compressed
         diff.attrs = dataset_uncompressed.attrs
         for var in diff.data_vars:
@@ -317,3 +325,50 @@ class TestPythonInterface:
         diff.to_netcdf(tmp_path / "diff.nc")
         diff = xarray.open_dataset(tmp_path / "diff.nc")
         assert diff.thetao.mean().values == 0.0
+
+    def test_lonlat_attributes_when_not_in_arco(self, tmp_path):
+        dataset_response = subset(
+            dataset_id="esa_obs-si_arc_phy-sit_nrt_l4-multi_P1D-m",
+            variables=["density_of_ocean", "quality_flag"],
+            minimum_longitude=-28.10,
+            maximum_longitude=-27.94,
+            minimum_latitude=40.20,
+            maximum_latitude=40.44,
+            start_datetime="2024-11-21T00:00:00",
+            end_datetime="2024-11-21T00:00:00",
+            minimum_depth=5,
+            maximum_depth=10,
+            output_directory=tmp_path,
+            output_filename="without_lonlat_attrs_dataset.nc",
+        )
+        dataset = xarray.open_dataset(
+            tmp_path / "without_lonlat_attrs_dataset.nc"
+        )
+
+        assert dataset_response.status == "000"
+        assert dataset.longitude.attrs == {
+            "axis": "X",
+            "long_name": "Longitude",
+            "standard_name": "longitude",
+            "units": "degrees_east",
+        }
+        assert dataset.latitude.attrs == {
+            "axis": "Y",
+            "long_name": "Latitude",
+            "standard_name": "latitude",
+            "units": "degrees_north",
+        }
+        for coordinate in dataset_response.coordinates_extent:
+            assert coordinate.coordinate_id in dataset.sizes
+            if coordinate.coordinate_id in [
+                "longitude",
+                "latitude",
+            ]:  # not time
+                assert (
+                    min(dataset[coordinate.coordinate_id].values)
+                    == coordinate.minimum
+                )
+                assert (
+                    dataset[coordinate.coordinate_id].values.max()
+                    == coordinate.maximum
+                )

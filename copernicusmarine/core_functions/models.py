@@ -4,7 +4,7 @@ from typing import Literal, Optional, Union, get_args
 
 from pydantic import BaseModel, ConfigDict
 
-FileFormat = Literal["netcdf", "zarr"]
+FileFormat = Literal["netcdf", "zarr", "csv", "parquet"]
 DEFAULT_FILE_FORMAT: FileFormat = "netcdf"
 DEFAULT_FILE_FORMATS = list(get_args(FileFormat))
 
@@ -23,6 +23,9 @@ DEFAULT_COORDINATES_SELECTION_METHODS = list(
 VerticalAxis = Literal["depth", "elevation"]
 DEFAULT_VERTICAL_AXIS: VerticalAxis = "depth"
 DEFAULT_VERTICAL_AXES = list(get_args(VerticalAxis))
+
+GeoSpatialProjection = Literal["lonlat", "originalGrid"]
+DEFAULT_GEOSPATIAL_PROJECTION: GeoSpatialProjection = "lonlat"
 
 
 class StatusCode(str, Enum):

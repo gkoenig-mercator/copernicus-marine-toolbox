@@ -11,3 +11,6 @@ Usage and technical details
     shared-options
     network-configuration
     errors
+    environment-variables
+    subset_using_polygons
+    stereo_subset

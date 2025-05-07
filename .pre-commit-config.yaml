@@ -9,6 +9,7 @@ repos:
       - id: check-ast
       - id: fix-byte-order-marker
       - id: check-added-large-files
+        exclude: ^(doc/usage/)
       - id: check-case-conflict
       - id: check-docstring-first
       - id: check-executables-have-shebangs
@@ -26,9 +27,9 @@ repos:
       - id: mixed-line-ending
       - id: name-tests-test
         args: [--pytest-test-first]
-        exclude: ^tests/resources/
+        exclude: ^(tests/resources/|tests/scripts)
       - id: pretty-format-json
-        exclude: ^doc/usage/quickoverview.ipynb
+        exclude: ^(doc/usage/quickoverview.ipynb|doc/usage/subset_using_polygons.ipynb|doc/usage/stereo_subset.ipynb)
   - repo: https://github.com/pre-commit/mirrors-isort
     rev: v5.10.1
     hooks:
@@ -58,4 +59,4 @@ repos:
     rev: v0.991
     hooks:
       - id: mypy
-        additional_dependencies: [types-requests==2.27.11, types-pyyaml==6.0.5]
+        additional_dependencies: [types-requests==2.27.11, types-pyyaml==6.0.5, types-toml==0.10.8.20240310, types-python-dateutil==2.9.0.20241206]

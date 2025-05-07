@@ -13,6 +13,7 @@ from copernicusmarine.command_line_interface.utils import (
     credentials_file_option,
     force_dataset_part_option,
     force_dataset_version_option,
+    force_download_option,
     tqdm_disable_option,
 )
 from copernicusmarine.core_functions import documentation_utils
@@ -40,7 +41,10 @@ from copernicusmarine.core_functions.subset import (
     create_subset_template,
     subset_function,
 )
-from copernicusmarine.core_functions.utils import datetime_parser
+from copernicusmarine.core_functions.utils import (
+    datetime_parser,
+    original_grid_check,
+)
 
 logger = logging.getLogger("copernicusmarine")
 blank_logger = logging.getLogger("copernicusmarine_blank_logger")
@@ -111,27 +115,67 @@ def cli_subset() -> None:
 )
 @click.option(
     "--minimum-longitude",
-    "-x",
     type=float,
     help=documentation_utils.SUBSET["MINIMUM_LONGITUDE_HELP"],
 )
 @click.option(
+    "-x",
+    "alias_min_x",
+    type=float,
+    help=documentation_utils.SUBSET["ALIAS_MIN_X_HELP"],
+)
+@click.option(
+    "--minimum-x",
+    type=float,
+    help=documentation_utils.SUBSET["MINIMUM_X_HELP"],
+)
+@click.option(
     "--maximum-longitude",
-    "-X",
     type=float,
     help=documentation_utils.SUBSET["MAXIMUM_LONGITUDE_HELP"],
 )
 @click.option(
+    "-X",
+    "alias_max_x",
+    type=float,
+    help=documentation_utils.SUBSET["ALIAS_MAX_X_HELP"],
+)
+@click.option(
+    "--maximum-x",
+    type=float,
+    help=documentation_utils.SUBSET["MAXIMUM_X_HELP"],
+)
+@click.option(
     "--minimum-latitude",
-    "-y",
     type=click.FloatRange(min=-90, max=90),
     help=documentation_utils.SUBSET["MINIMUM_LATITUDE_HELP"],
 )
 @click.option(
+    "-y",
+    "alias_min_y",
+    type=float,
+    help=documentation_utils.SUBSET["ALIAS_MIN_Y_HELP"],
+)
+@click.option(
+    "--minimum-y",
+    type=float,
+    help=documentation_utils.SUBSET["MINIMUM_Y_HELP"],
+)
+@click.option(
     "--maximum-latitude",
-    "-Y",
     type=click.FloatRange(min=-90, max=90),
     help=documentation_utils.SUBSET["MAXIMUM_LATITUDE_HELP"],
+)
+@click.option(
+    "-Y",
+    "alias_max_y",
+    type=float,
+    help=documentation_utils.SUBSET["ALIAS_MAX_Y_HELP"],
+)
+@click.option(
+    "--maximum-y",
+    type=float,
+    help=documentation_utils.SUBSET["MAXIMUM_Y_HELP"],
 )
 @click.option(
     "--minimum-depth",
@@ -167,6 +211,14 @@ def cli_subset() -> None:
     help=documentation_utils.SUBSET["END_DATETIME_HELP"]
     + " Caution: encapsulate date with “ “ to ensure valid "
     "expression for format “%Y-%m-%d %H:%M:%S”.",
+)
+@click.option(
+    "--platform-id",
+    "-p",
+    "platform_ids",
+    type=str,
+    help=documentation_utils.SUBSET["PLATFORM_IDS_HELP"],
+    multiple=True,
 )
 @click.option(
     "--coordinates-selection-method",
@@ -285,6 +337,14 @@ def cli_subset() -> None:
     default="INFO",
     help=documentation_utils.SUBSET["LOG_LEVEL_HELP"],
 )
+@click.option(
+    "--raise-if-updating",
+    type=bool,
+    default=False,
+    is_flag=True,
+    help=documentation_utils.SUBSET["RAISE_IF_UPDATING_HELP"],
+)
+@force_download_option
 @log_exception_and_exit
 def subset(
     dataset_id: str,
@@ -297,11 +357,20 @@ def subset(
     maximum_longitude: Optional[float],
     minimum_latitude: Optional[float],
     maximum_latitude: Optional[float],
+    minimum_x: Optional[float],
+    maximum_x: Optional[float],
+    minimum_y: Optional[float],
+    maximum_y: Optional[float],
+    alias_min_x: Optional[float],
+    alias_max_x: Optional[float],
+    alias_min_y: Optional[float],
+    alias_max_y: Optional[float],
     minimum_depth: Optional[float],
     maximum_depth: Optional[float],
     vertical_axis: VerticalAxis,
     start_datetime: Optional[str],
     end_datetime: Optional[str],
+    platform_ids: Optional[List[str]],
     coordinates_selection_method: CoordinatesSelectionMethod,
     output_filename: Optional[str],
     file_format: FileFormat,
@@ -321,6 +390,8 @@ def subset(
     log_level: str,
     chunk_size_limit: int,
     staging: bool,
+    raise_if_updating: bool,
+    force_download: bool,
 ):
     if log_level == "QUIET":
         logger.disabled = True
@@ -338,6 +409,29 @@ def subset(
         create_subset_template()
         return
 
+    original_grid_check(
+        minimum_longitude,
+        maximum_longitude,
+        minimum_latitude,
+        maximum_latitude,
+        minimum_x,
+        maximum_x,
+        minimum_y,
+        maximum_y,
+        dataset_part,
+    )
+    if dataset_part == "originalGrid":
+        if (
+            alias_max_x is not None
+            or alias_min_x is not None
+            or alias_max_y is not None
+            or alias_min_y is not None
+        ):
+            logger.debug(
+                "Because you are using an originalGrid dataset, we are considering"
+                " the options -x, -X, -y, -Y to be in m/km, not in degrees."
+            )
+
     response = subset_function(
         dataset_id=dataset_id,
         force_dataset_version=dataset_version,
@@ -345,10 +439,34 @@ def subset(
         username=username,
         password=password,
         variables=variables,
-        minimum_longitude=minimum_longitude,
-        maximum_longitude=maximum_longitude,
-        minimum_latitude=minimum_latitude,
-        maximum_latitude=maximum_latitude,
+        minimum_longitude=(
+            minimum_longitude
+            if minimum_longitude is not None
+            else minimum_x
+            if minimum_x is not None
+            else alias_min_x
+        ),
+        maximum_longitude=(
+            maximum_longitude
+            if maximum_longitude is not None
+            else maximum_x
+            if maximum_x is not None
+            else alias_max_x
+        ),
+        minimum_latitude=(
+            minimum_latitude
+            if minimum_latitude is not None
+            else minimum_y
+            if minimum_y is not None
+            else alias_min_y
+        ),
+        maximum_latitude=(
+            maximum_latitude
+            if maximum_latitude is not None
+            else maximum_y
+            if maximum_y is not None
+            else alias_max_y
+        ),
         minimum_depth=minimum_depth,
         maximum_depth=maximum_depth,
         vertical_axis=vertical_axis,
@@ -356,6 +474,7 @@ def subset(
             datetime_parser(start_datetime) if start_datetime else None
         ),
         end_datetime=datetime_parser(end_datetime) if end_datetime else None,
+        platform_ids=platform_ids,
         coordinates_selection_method=coordinates_selection_method,
         output_filename=output_filename,
         file_format=file_format,
@@ -372,6 +491,7 @@ def subset(
         netcdf_compression_level=netcdf_compression_level,
         netcdf3_compatible=netcdf3_compatible,
         chunk_size_limit=chunk_size_limit,
+        raise_if_updating=raise_if_updating,
     )
     if response_fields:
         fields_to_include = set(response_fields.replace(" ", "").split(","))

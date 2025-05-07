@@ -1,10 +1,10 @@
 .. _installation-page:
 
 ===================================================
-Installing Copernicus Marine toolbox
+Installing Copernicus Marine Toolbox
 ===================================================
 
-There are several ways to install or use the Copernicus Marine toolbox:
+There are several ways to install or use the Copernicus Marine Toolbox:
 
 * via pip (see `PyPI repository <https://pypi.org/project/copernicusmarine/>`_)
 * via mamba | conda (see `conda-forge channel <https://anaconda.org/conda-forge/copernicusmarine>`_)
@@ -48,7 +48,7 @@ You can install it using ``mamba`` (or conda) through the ``conda-forge`` channe
 
     mamba install conda-forge::copernicusmarine --yes
 
-To upgrade the Toolbox with mamba (or conda):
+To upgrade the toolbox with mamba (or conda):
 
 .. code-block:: bash
 
@@ -85,21 +85,21 @@ To be able to download Copernicus Marine data, you need to have an account on th
 
 
 
-Use the Copernicus Marine toolbox binaries
+Use the Copernicus Marine Toolbox binaries
 ***********************************************
 
 In the `release page <https://github.com/mercator-ocean/copernicus-marine-toolbox/releases>`_ you can access the binaries of the latest releases.
 
 To download directly the latest stable releases:
 
-- MacOS arm64: `copernicusmarine_macos-arm64 <https://github.com/mercator-ocean/copernicus-marine-toolbox/releases/download/latest/copernicusmarine_macos-arm64.cli>`_
-- MacOS x86_64: `copernicusmarine_macos-x86_64 <https://github.com/mercator-ocean/copernicus-marine-toolbox/releases/download/latest/copernicusmarine_macos-x86_64.cli>`_
-- Linux (with glibc 2.35): `copernicusmarine_linux <https://github.com/mercator-ocean/copernicus-marine-toolbox/releases/download/latest/copernicusmarine_linux-glibc-2.35.cli>`_
-- Linux (with glibc 2.31): `copernicusmarine_linux <https://github.com/mercator-ocean/copernicus-marine-toolbox/releases/download/latest/copernicusmarine_linux-glibc-2.31.cli>`_
-- Windows: `copernicusmarine <https://github.com/mercator-ocean/copernicus-marine-toolbox/releases/download/latest/copernicusmarine.exe>`_
+- MacOS arm64: |download_macos_arm64|
+- MacOS x86_64: |download_macos_x86|
+- Linux (with glibc 2.35): |download_linux_235|
+- Linux (with glibc 2.39): |download_linux_239|
+- Windows: |download_windows|
 
 
-Once downloaded for the specific platform, you can use the toolbox by running the binary as follows:
+Once downloaded for the specific platform, you can use the Toolbox by running the binary as follows:
 
 In mac-os or linux:
 
@@ -113,7 +113,7 @@ You might have to update the permissions of the binary to be able to execute it 
 
 .. code-block:: bash
 
-    chmod +rwx copernicusmarine_linux-glibc-2.31.cli
+    chmod +rwx copernicusmarine_linux-glibc-2.35.cli
 
 And from a Windows os (cmd):
 
@@ -139,8 +139,27 @@ And from a Windows os (cmd):
 
 Dependencies
 **************
+The Copernicus Marine Toolbox has the following dependencies:
 
-The Copernicus Marine toolbox uses the xarray library to handle the data when using the ``subset`` command.
+- `Python <https://www.python.org/>`__ (3.9 or later)
+- `click <https://click.palletsprojects.com/>`__ (8.0.4 or later)
+- `requests <https://docs.python-requests.org/en/latest/>`__ (2.27.1 or later)
+- `setuptools <https://setuptools.pypa.io/en/latest/>`__ (68.2.2 or later)
+- `xarray <https://xarray.pydata.org/>`__ (2023.4.0 or later)
+- `tqdm <https://tqdm.github.io/>`__ (4.65.0 or later)
+- `zarr <https://zarr.readthedocs.io/en/stable/>`__ (2.13.3 or later)
+- `dask <https://www.dask.org/>`__ (2022 or later)
+- `boto3 <https://boto3.amazonaws.com/v1/documentation/api/latest/index.html>`__ (1.26 or later)
+- `semver <https://python-semver.readthedocs.io/en/latest/>`__ (0.2 or later)
+- `pystac <https://pystac.readthedocs.io/en/stable/>`__ (1.8.3 or later)
+- `lxml <https://lxml.de/>`__ (4.9.0 or later)
+- `numpy <https://www.numpy.org/>`__ (1.23 or later)
+- `pydantic <https://docs.pydantic.dev/>`__ (2.9.1 or later)
+- `h5netcdf <https://h5netcdf.org>`__ (1.4.0 or later)
+- `arcosparse <https://pypi.org/project/arcosparse/>`__ (0.2.0 or later)
+
+
+The Copernicus Marine Toolbox uses the xarray library to handle the data when using the ``subset`` command in the majority of cases.
 There are some compatibility issues with the latest versions of xarray and numpy:
 
 - ``xarray<2024.7.0`` with ``numpy>=2.0.0`` leads to inconsistent results. See this issue: `xarray issue 1 <https://github.com/pydata/xarray/issues/9179>`_.
@@ -149,13 +168,60 @@ There are some compatibility issues with the latest versions of xarray and numpy
 Also to convert subsetted data to NetCDF format the toolbox uses the `xarray.Dataset.to_netcdf <https://docs.xarray.dev/en/latest/generated/xarray.Dataset.to_netcdf.html>`_
 and ``h5netcdf`` library as the backend.
 
-The ``h5netcdf`` library is not compatible with the NetCDF3 format.
-If you want to use it please make sure to install the ``netcdf4`` library:
+.. note::
+
+    The ``h5netcdf`` library is not compatible with the NetCDF3 format.
+    If you need to save files in NetCDF3 format please just manually install ``netcdf4``
+    library (see also `netCDF4 page <https://unidata.github.io/netcdf4-python/>`_):
+
+    .. code-block:: bash
+
+        # with conda | mamba | micromamba
+        conda install -c conda-forge netCDF4
+        # or add it to you environment.yml file
+
+        # with pip
+        python -m pip install netCDF4
+
+
+
+    The docker image of the toolbox should already have the ``netcdf4`` library installed.
+
+
+Domains required by the Copernicus Marine Toolbox
+********************************************************
+To be able to use the Copernicus Marine Services, you need to be able to access those domains:
+
+- ``https://cmems-cas.cls.fr``: for the old authentication process.
+- ``https://auth.marine.copernicus.eu``: for the new authentication process.
+- ``https://s3.waw3-1.cloudferro.com``: for the data.
+
+To check if you are able to access ``https://s3.waw3-1.cloudferro.com`` the way the toolbox is doing it you can do the following steps.
+
+First, open a Python console in the same environment as you would run your script:
 
 .. code-block:: bash
 
-    python -m pip install netcdf4
+    python
 
-.. note::
+Then, run a requests and check that the result is as expected:
 
-    The image of the toolbox should already have the ``netcdf4`` library installed.
+.. code-block:: python
+
+    import requests
+
+    # you can pass here proxies and ssl configuration if needed
+    response = requests.get(
+        "https://s3.waw3-1.cloudferro.com/mdl-metadata/mdsVersions.json"
+    )
+    response.raise_for_status()
+
+    print(response.json())
+
+    # you should get something like:
+    # {'systemVersions': {'mds': '1.0.0', [..] 'mds/serverlessArco/meta': '>=1.2.2'}}
+
+
+For the authentication, check that you can run the ``login`` command.
+If you have an error related to HTTP calls or internet connection,
+please check with your IT support.
